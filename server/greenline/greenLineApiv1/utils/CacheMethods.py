@@ -10,3 +10,11 @@ class CacheMethods:
 
     def deleteCache(key):
         cache.delete(key)
+
+    def cacheIsExist(key):
+        approximateCache = cache.get(key)
+
+        if approximateCache:
+            return True
+        
+        return False

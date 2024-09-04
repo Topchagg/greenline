@@ -1,5 +1,4 @@
 from django.db import models
-from datetime import time
 
 class Cleaner(models.Model):
     name = models.CharField(max_length=30)
@@ -43,7 +42,7 @@ class Order(models.Model):
     cleaner = models.ForeignKey(Cleaner, on_delete=models.CASCADE) #
     orderType = models.ForeignKey(CleanType, on_delete=models.CASCADE) #
 
-    # withTransport = models.BooleanField(default=True)
+    withTransport = models.BooleanField(default=True)
     inProcess = models.BooleanField(default=False) 
     isDone = models.BooleanField(default=False)
 
@@ -54,10 +53,10 @@ class Order(models.Model):
     startTask = models.TimeField() #
     endTask = models.TimeField() #
     breakTime = models.TimeField(default='01:00') #
-    # readyToNewTask = models.TimeField() #
+    readyToNewTask = models.TimeField() #
 
-    cleaningTime = models.TimeField(null=True) #
-    salary = models.IntegerField(null=True) #
+    cleaningTime = models.TimeField(blank=True) #
+    priceToPay = models.FloatField(blank=True) #
 
     isGood = models.BooleanField(default=True) #
     message = models.TextField(default='') #

@@ -7,7 +7,7 @@ class ViewMethods():
     def __init__(self):
         pass
 
-    def listMethod(methodData,timeOut):
+    def getMethod(methodData,timeOut):
         approximateCacheData = CacheMethods.getCache(methodData.cacheName)
 
         if approximateCacheData:

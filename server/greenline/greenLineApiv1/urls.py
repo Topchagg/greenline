@@ -20,7 +20,11 @@ router.register(r'wash-liquid', WashLiquidViewSet, basename='wash-liquid')
 
 #
 
-router.register(r'order',MakeOrderViewSet)
+router.register(r'order',MakeOrderViewSet,basename='order')
+
+#
+
+router.register(r'manipulate-with-order',ManipulateWithOrder, basename='manipulate-with-order')
 
 
 

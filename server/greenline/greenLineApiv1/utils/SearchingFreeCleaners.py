@@ -4,7 +4,7 @@ from .findTimeCut import findTimeCut
 from .timeStrIntoTimeDelta import timeStrIntoTimeDelta
 from greenLineApiv1.serializers import *
 
-def canOrderOnThisTime(cleaners, timeStartCleaningObject,approximateCleanTime):
+def canOrderOnThisTime(cleaners, timeStartCleaningObject,approximateCleanTime,bookedCleaners):
 
     timeStartCleaningObject = timeStrIntoTimeDelta(timeStartCleaningObject)
     approximateCleanTime = timeStrIntoTimeDelta(approximateCleanTime) + timedelta(hours=1)
@@ -18,8 +18,8 @@ def canOrderOnThisTime(cleaners, timeStartCleaningObject,approximateCleanTime):
         for cleaner in cleaners:
             localTimes = []
             isPossibleToBookThisCleaner = True
-            for order in cleaner["orders"]:
-                if len(cleaner["orders"]) < 3:
+            if cleaner['id'] not in bookedCleaners and len(cleaner['orders']) < 3 and len(cleaner['orders']) >= 1:
+                for order in cleaner["orders"]:
                     orderTimeStart = timeStrIntoTimeDelta(order["startTask"])
                     orderTimeEnd = timeStrIntoTimeDelta(order["endTask"])
 
@@ -28,12 +28,16 @@ def canOrderOnThisTime(cleaners, timeStartCleaningObject,approximateCleanTime):
 
                     if (orderTimeStart < timeEndCleaningObject and timeStartCleaningObject < orderTimeEnd):
                         isPossibleToBookThisCleaner = False
-                else:
-                    isPossibleToBookThisCleaner = False
+                            
+                    else:
+                        isPossibleToBookThisCleaner = False
 
-            if isPossibleToBookThisCleaner:
+                    if isPossibleToBookThisCleaner:
+                        cleanerThatCanClean.append(cleaner['id'])
+                    globalTimes.append(localTimes)
+
+            elif len(cleaner['orders']) == 0:
                 cleanerThatCanClean.append(cleaner['id'])
-            globalTimes.append(localTimes)
 
         if len(cleanerThatCanClean) > 0:
             return {"data":cleanerThatCanClean,"isListOfId":True}

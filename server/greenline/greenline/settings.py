@@ -13,6 +13,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -21,7 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     "corsheaders",
-    'greenLineApiv1.apps.Greenlineapiv1Config'
+    'greenLineApiv1.apps.Greenlineapiv1Config',
 ]
 
 MIDDLEWARE = [
@@ -56,6 +57,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'greenline.wsgi.application'
+ASGI_APPLICATION = "greenline.asgi.application"
 
 
 DATABASES = {
@@ -126,3 +128,13 @@ CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/2'
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],  # Порт Redis
+        },
+    },
+}

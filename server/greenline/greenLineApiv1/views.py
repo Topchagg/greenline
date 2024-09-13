@@ -17,6 +17,8 @@ from .serializers import *
 from .utils.ViewMethods import ViewMethods
 from .utils.CacheMethods import CacheMethods
 from .utils.SearchingFreeCleaners import *
+from .utils.timeDeltaIntoHumanize import timeDeltaIntoHumanize
+from .utils.CalculateNewArithmeticMean import CalculateNewArithmeticMean
 
 
 
@@ -124,13 +126,28 @@ class MakeOrderViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             date = serializer.data['date']
             cleanerID = serializer.data['cleaner']
+            
+            bookedCleaners = CacheMethods.getCache(f"booked_cleaners__${date}")
+
+            if bookedCleaners:
+
+                try:
+                    bookedCleaners = json.loads(bookedCleaners)
+                    newBookedCleaners = []
+
+                    for i in bookedCleaners:
+                        if cleanerID != i:
+                            newBookedCleaners.append()
+
+                    CacheMethods.setCache(f"booked_cleaners__${date}",newBookedCleaners,3600*24)
+                    CacheMethods.setCache(f"cleaner-got-order__${date}__${cleanerID}","booked",60*5)
+
+                except Exception:
+                    return Response({"error":"Something went wrong"},status=status.HTTP_400_BAD_REQUEST)
 
             serializer.save()
-
-            CacheMethods.setCache(f"cleaner-got-order__${date}__${cleanerID}",True,60*3)
-            CacheMethods.deleteCache(f"booked-cleaner__${date}__${cleanerID}")
-
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
         else:
             return Response({"Error":"Invalid data"},status=status.HTTP_400_BAD_REQUEST)
         
@@ -170,10 +187,9 @@ class ManipulateWithOrder(viewsets.GenericViewSet, mixins.UpdateModelMixin):
             CacheMethods.setCache(f"task_control__${id}","stop",60)
 
             realPrice = CacheMethods.getCache(f"order_info_price__${id}")
-            realTime = CacheMethods.getCache(f"order_info_time__${id}")
+            realTime = timedelta( seconds = int(CacheMethods.getCache(f"order_info_time__${id}")))
 
-            data = {"inProcess": False,"salary":realPrice}
-
+            data = {"inProcess": False,"priceToPay":realPrice,"cleaningTime":timeDeltaIntoHumanize(realTime)}
         else:
             return Response({"error": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -181,14 +197,61 @@ class ManipulateWithOrder(viewsets.GenericViewSet, mixins.UpdateModelMixin):
 
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            return Response(serializer.data,status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
 
+class ConfirmEndOfTask(viewsets.GenericViewSet,mixins.UpdateModelMixin):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    clean_type_serializer_class = CleanTypeSerializer
+
+    def update(self,request,*args,**kwargs):
+        
+        choicedObject = self.get_object()
+
+        try:
+            if choicedObject:
+                serializedOrder = self.serializer_class(choicedObject,many=False)
+                dataOfOrder = serializedOrder.data
+
+                neededCleanType = CleanType.objects.get(pk=dataOfOrder['orderType'])
+                serializedCleanOfType = self.clean_type_serializer_class(neededCleanType,many=False)
+
+                dataOfCleanType = serializedCleanOfType.data
+
+                newArthimeticMeanPrices = CalculateNewArithmeticMean(dataOfCleanType['amountOrders'],dataOfCleanType['price'],dataOfOrder['priceToPay'])
+
+                newOrderData = {"isDone":True}
+                newCleanTypeData = {"price":int(newArthimeticMeanPrices),
+                                    "time":'00:00:00',
+                                    "amountOrders":int(dataOfCleanType.get("amountOrders")) + 1}
+
+                updatedSerializedCleanType = self.clean_type_serializer_class(neededCleanType,data=newCleanTypeData,partial=True)
+                updatedSerializedOrder = self.serializer_class(choicedObject,data=newOrderData,partial=True)
 
 
+                if updatedSerializedOrder.is_valid() and updatedSerializedCleanType.is_valid():
+                    
+                    updatedSerializedOrder.save()
+                    updatedSerializedCleanType.save()
+
+                    return Response(
+                        {"ok":"Is updated",
+                         "data":{
+                            "Order":updatedSerializedOrder.data,
+                            "CleanType":updatedSerializedCleanType.data
+                        }},
+                        status=status.HTTP_200_OK)
+                else:
+                    return Response({"error":"Data isn't valid"},status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response({"error":"Order wasn't found"},status=status.HTTP_404_NOT_FOUND)
+            
+        except Exception:
+            return Response({"error": f"Unpredictable error"},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -198,44 +261,37 @@ class ReturnFreeCleaners(View):
     def get(self, request, *args, **kwargs):
         targetDateStr = request.GET.get("date")
 
-        cleaningTimeStart = request.GET.get("cleaningTimeStart")
-        approximateTimeWork = request.GET.get("approximateTimeWork")
-    
-        freeCleanersCacheName = f"free-cleaners__${targetDateStr}"
-
-        freeCleanersCache = CacheMethods.getCache(freeCleanersCacheName)
-
-        # if freeCleanersCache:
-        #     return JsonResponse({"cleaners":json.loads(freeCleanersCache)},status=status.HTTP_200_OK)
+        cleaningTimeStart = request.GET.get("startTask")
+        approximateTimeWork = request.GET.get("approximateTime")
 
         try:
             if not targetDateStr:
                 return JsonResponse({"error":"Date is requies"},status=status.HTTP_400_BAD_REQUEST)
-            
             try: 
                 targetDate = datetime.strptime(targetDateStr, "%Y-%m-%d").date()
             except ValueError:
                 return JsonResponse({"error":"Invalid date"}, status=status.HTTP_400_BAD_REQUEST)
-            
-            ordersOnThatDay = Order.objects.filter(date=targetDate)
-            
-            freeCleaners = Cleaner.objects.exclude(id__in=Subquery(ordersOnThatDay.values("cleaner_id")))
-            serialized_data = EmployeePreviewSerializer(freeCleaners, many=True)
-            if len(serialized_data.data) > 0:
-                CacheMethods.setCache(freeCleanersCacheName,serialized_data.data,3600*24)
-                return JsonResponse({"cleaners": serialized_data.data},status=status.HTTP_200_OK)
+
+            allCleaners = Cleaner.objects.all() 
+            serializer = EmployeeWithOrders(allCleaners,many=True,context={"date":targetDate})
+
+            bookedCleaners = CacheMethods.getCache(f"booked_cleaners__${targetDateStr}")
+
+            if bookedCleaners:
+                bookedCleaners = json.loads(bookedCleaners)
             else:
-                allCleaners = Cleaner.objects.all() 
-                serializer = EmployeeWithOrders(allCleaners,many=True,context={"date":targetDate})
+                bookedCleaners = []
 
-                result = canOrderOnThisTime(serializer.data,cleaningTimeStart,approximateTimeWork)
+            result = canOrderOnThisTime(serializer.data,cleaningTimeStart,approximateTimeWork,bookedCleaners)
+
+            if result["isListOfId"]:
+
+                findedCleaners = Cleaner.objects.filter(id__in=result["data"])
+                serializer = EmployeePreviewSerializer(findedCleaners,many=True)
                 
-                if result["isListOfId"]:
-                    findedCleaners = Cleaner.objects.filter(id__in=result["data"])
-                    serializer = EmployeePreviewSerializer(findedCleaners,many=True)
-                    return JsonResponse({"result":serializer.data},status=status.HTTP_200_OK)
+                return JsonResponse({"result":serializer.data},status=status.HTTP_200_OK)
 
-                return JsonResponse({"result":result["data"]},status=status.HTTP_200_OK)
+            return JsonResponse({"result":result["data"]},status=status.HTTP_200_OK)
         
         except json.JSONDecodeError:
             return JsonResponse({"error":"Invalid data"}, status=status.HTTP_400_BAD_REQUEST)
@@ -252,35 +308,21 @@ class BookCleaner(View):
         idOfCleanerToBook = int(request.GET.get("id"))
         date = request.GET.get("date")
 
-        if date and idOfCleanerToBook:
+        if idOfCleanerToBook and date:
+            get_object_or_404(Cleaner,pk=idOfCleanerToBook)
 
-            bookedCleanerCacheName = f"booked-cleaner__${date}__${idOfCleanerToBook}"
-            freeCleanerCacheName = f"free-cleaners__${date}"
-
-            possiblyBookedUser = CacheMethods.getCache(bookedCleanerCacheName)
-
-            if possiblyBookedUser:
-                return JsonResponse({"error":"This cleaner already booked"}, status=status.HTTP_400_BAD_REQUEST)
+            bookedCleaners = CacheMethods.getCache(f"booked_cleaners__${date}")
+    
+            if bookedCleaners:
+                bookedCleaners = json.loads(bookedCleaners)
+                bookedCleaners.append(idOfCleanerToBook)
+                CacheMethods.setCache(f"booked_cleaners__${date}",bookedCleaners,3600*24)
             else:
-                CacheMethods.setCache(bookedCleanerCacheName,idOfCleanerToBook,60*2)
-                freeCleaners = json.loads(CacheMethods.getCache(freeCleanerCacheName))
-                newCleanerList = []
-                deletedCleaner = ""
+                CacheMethods.setCache(f"booked_cleaners__${date}",[idOfCleanerToBook],3600*24)
 
-                for cleaner in freeCleaners:
-                    if cleaner["id"] != idOfCleanerToBook:
-                        newCleanerList.append(cleaner)
-                    else:
-                        deletedCleaner = cleaner
-
-                CacheMethods.setCache(freeCleanerCacheName,newCleanerList,60*60)
-                
-                checkIsOrdered.apply_async((date, idOfCleanerToBook, deletedCleaner), countdown=150)
-
-                return JsonResponse({"ok":"Cleaner was ordered"},status=status.HTTP_200_OK)
+            checkOrder.apply_async((date,idOfCleanerToBook),countdown=150)
             
-        else:
-            return JsonResponse({"error":"Wrong params was sended"},status.HTTP_400_BAD_REQUEST)
-    
+            return JsonResponse({"ok":"Is booked"},status=status.HTTP_200_OK)
 
-    
+        else:
+            return JsonResponse({"error":"Wrong data"},status=status.HTTP_400_BAD_REQUEST)

@@ -21,13 +21,13 @@ class CleanType(models.Model):
     description = models.TextField()
     whatCleanerDo = models.TextField()
     pricePerHr = models.IntegerField()
-    amountOrders = models.IntegerField()
-    time = models.TimeField()  # medianTime
-    price = models.IntegerField()  # medianPrice
-    liveRoom = models.IntegerField()  # timeLiveRoomClean
-    kitchen = models.IntegerField()  # timeKitchenClean
-    corridor = models.IntegerField()  # TimeCleanCorridor
-    bathroom = models.IntegerField()  # BathroomClean
+    amountOrders = models.IntegerField(default=0)
+    time = models.TimeField(default="00:00:00")  # medianTime
+    price = models.IntegerField(default=0)  # medianPrice
+    liveRoom = models.IntegerField(default="00:00:00")  # timeLiveRoomClean
+    kitchen = models.IntegerField(default="00:00:00")  # timeKitchenClean
+    corridor = models.IntegerField(default="00:00:00")  # TimeCleanCorridor
+    bathroom = models.IntegerField(default="00:00:00")  # BathroomClean
     washLiquidUsage = models.IntegerField()  # Medium usage
     employeeSalary = models.IntegerField()
     marge = models.IntegerField()

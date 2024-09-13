@@ -26,11 +26,13 @@ router.register(r'order',MakeOrderViewSet,basename='order')
 
 router.register(r'manipulate-with-order',ManipulateWithOrder, basename='manipulate-with-order')
 
+#
 
+router.register(r'confirm-end-of-task',ConfirmEndOfTask,basename='confirm-end-of-task')
 
 
 urlpatterns = [
     path('',include(router.urls)),
     path('find-free-cleaners/', ReturnFreeCleaners.as_view()),
-    path('book-cleaner/',BookCleaner.as_view())
+    path('book-cleaner/',BookCleaner.as_view()),
 ]
